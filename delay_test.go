@@ -116,6 +116,51 @@ func TestHeaderBeforeDelayAfter(t *testing.T) {
 	testDurationWithTolerance(t, responseTime, extraLatencyBefore+extraLatencyAfter)
 }
 
+// h = Delay(h, Header(prefix), Max(d))
+func TestMaxBeforeAfterExceeded(t *testing.T) {
+	const maxLatency = 100 * time.Millisecond
+	const extraLatencyBefore = 300 * time.Millisecond
+	const extraLatencyBeforeString = "300ms"
+	const extraLatencyAfter = 700 * time.Millisecond
+	const extraLatencyAfterString = "700ms"
+	const prefix = "delay"
+
+	delayedHandler := Delay(helloWorld, Header(prefix), Max(maxLatency))
+
+	headers := http.Header{
+		"delay-before": []string{extraLatencyBeforeString},
+		"delay-after":  []string{extraLatencyAfterString},
+	}
+	messageBytes, responseTime := call(t, delayedHandler, headers)
+
+	testOuput(t, messageBytes, "Hello world\n")
+	// Capping at maxLatency before, and maxLatency after, thus 2*maxLatency
+	testDurationWithTolerance(t, responseTime, 2*maxLatency)
+}
+
+// h = Delay(h, Header(prefix), Max(d))
+func TestMaxBeforeAfterNotExceeded(t *testing.T) {
+	const maxLatency = 600 * time.Millisecond
+	const extraLatencyBefore = 100 * time.Millisecond
+	const extraLatencyBeforeString = "100ms"
+	const extraLatencyAfter = 150 * time.Millisecond
+	const extraLatencyAfterString = "150ms"
+	const prefix = "delay"
+
+	delayedHandler := Delay(helloWorld, Header(prefix), Max(maxLatency))
+
+	headers := http.Header{
+		"delay-before": []string{extraLatencyBeforeString},
+		"delay-after":  []string{extraLatencyAfterString},
+	}
+	messageBytes, responseTime := call(t, delayedHandler, headers)
+
+	testOuput(t, messageBytes, "Hello world\n")
+	// extraLatencyBefore < maxLatency
+	// extraLatencyAfter < maxLatency
+	testDurationWithTolerance(t, responseTime, extraLatencyBefore+extraLatencyAfter)
+}
+
 // Helper: call the handler with specific request headers, while measuring response time.
 func call(t *testing.T, h http.HandlerFunc, headers http.Header) ([]byte, time.Duration) {
 	s := httptest.NewServer(h)

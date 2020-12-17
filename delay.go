@@ -14,6 +14,7 @@ func Delay(h http.HandlerFunc, opts ...Option) http.HandlerFunc {
 	// Default config values
 	cfg := config{
 		fixedDurationBefore: 1 * time.Second,
+		max:                 20 * time.Second,
 	}
 	// Apply options
 	for _, opt := range opts {
@@ -33,27 +34,34 @@ type config struct {
 	fixedDurationBefore time.Duration
 	fixedDurationAfter  time.Duration
 	headerPrefix        string
+	max                 time.Duration
 }
 
 // Option configures the behavior of the delayed handler.
 type Option func(*config)
 
 func (cfg *config) before(w http.ResponseWriter, r *http.Request) {
-	var d time.Duration
-	if cfg.headerPrefix != "" {
-		d, _ = readHeaderDuration(r, cfg.headerPrefix+"-before")
-	} else {
-		d = cfg.fixedDurationBefore
-	}
-	time.Sleep(d)
+	cfg.sleep(w, r, "before")
 }
 
 func (cfg *config) after(w http.ResponseWriter, r *http.Request) {
+	cfg.sleep(w, r, "after")
+}
+
+func (cfg *config) sleep(w http.ResponseWriter, r *http.Request, beforeOrAfter string) {
 	var d time.Duration
 	if cfg.headerPrefix != "" {
-		d, _ = readHeaderDuration(r, cfg.headerPrefix+"-after")
+		d, _ = readHeaderDuration(r, cfg.headerPrefix+"-"+beforeOrAfter)
 	} else {
-		d = cfg.fixedDurationAfter
+		switch beforeOrAfter {
+		case "before":
+			d = cfg.fixedDurationBefore
+		case "after":
+			d = cfg.fixedDurationAfter
+		}
+	}
+	if d > cfg.max {
+		d = cfg.max
 	}
 	time.Sleep(d)
 }
@@ -95,4 +103,13 @@ func readHeaderDuration(r *http.Request, name string) (time.Duration, bool) {
 		return 0, false
 	}
 	return d, true
+}
+
+// Max sets an upper limit on each delay.
+// The total delay (before + after) will not exceed 2*maxDuration.
+// The default is 20s.
+func Max(maxDuration time.Duration) Option {
+	return func(cfg *config) {
+		cfg.max = maxDuration
+	}
 }
