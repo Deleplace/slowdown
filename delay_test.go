@@ -15,7 +15,9 @@ func TestDelay(t *testing.T) {
 		fmt.Fprintln(w, "Hello world")
 	}
 	const extraLatency = 400 * time.Millisecond
-	delayedHandler := Delay(handler, extraLatency)
+	delayedHandler := Delay(handler, Config{
+		Duration: extraLatency,
+	})
 
 	s := httptest.NewServer(delayedHandler)
 	defer s.Close()
