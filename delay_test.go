@@ -1,11 +1,13 @@
 package slowdown
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -271,6 +273,40 @@ func TestMultipleConditionsUnmet(t *testing.T) {
 
 	testOuput(t, messageBytes, "Hello world\n")
 	testDurationWithTolerance(t, responseTime, 0)
+}
+
+// h = Delay(h, Fixed(d, 0))
+func TestContextCanceled(t *testing.T) {
+	const extraLatency = 500 * time.Millisecond
+	const cancelLatency = 200 * time.Millisecond
+	sideEffectHandler := func(w http.ResponseWriter, h *http.Request) {
+		t.Errorf("Should have been canceled before hitting the wrapped handler")
+	}
+	delayedHandler := Delay(sideEffectHandler, Fixed(extraLatency, 0))
+
+	// messageBytes, responseTime := call(t, delayedHandler, nil)
+
+	s := httptest.NewServer(delayedHandler)
+	defer s.Close()
+	client := &http.Client{}
+	req, _ := http.NewRequest("GET", s.URL, nil)
+	ctx2, cancel2 := context.WithTimeout(req.Context(), cancelLatency)
+	defer cancel2()
+	req = req.WithContext(ctx2)
+
+	var err error
+	responseTime := clock(func() {
+		_, err = client.Do(req)
+	})
+	if err == nil {
+		t.Fatal("Expected err: context deadline exceeded, got nil")
+	}
+	if !strings.Contains(err.Error(), "context deadline exceeded") {
+		t.Fatalf("Expected err: context deadline exceeded, got %T error %q", err, err.Error())
+	}
+	testDurationWithTolerance(t, responseTime, cancelLatency)
+	// Make sure the side effect would have had the time to be triggered
+	time.Sleep(extraLatency - cancelLatency + 50*time.Millisecond)
 }
 
 // Helper: call the handler with specific request headers, while measuring response time.

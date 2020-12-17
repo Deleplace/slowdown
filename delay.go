@@ -1,6 +1,7 @@
 package slowdown
 
 import (
+	"context"
 	"net/http"
 	"time"
 )
@@ -23,7 +24,17 @@ func Delay(h http.HandlerFunc, opts ...Option) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		cfg.before(w, r)
+
+		if isDone(r.Context()) {
+			return
+		}
+
 		h(w, r)
+
+		if isDone(r.Context()) {
+			return
+		}
+
 		cfg.after(w, r)
 	}
 }
@@ -69,7 +80,11 @@ func (cfg *config) sleep(w http.ResponseWriter, r *http.Request, beforeOrAfter s
 	if d > cfg.max {
 		d = cfg.max
 	}
-	time.Sleep(d)
+	// Like time.Sleep(d), but Context-aware
+	select {
+	case <-r.Context().Done(): //context cancelled
+	case <-time.After(d):
+	}
 }
 
 // Fixed sets how long to pause before and after the wrapped HandlerFunc is executed.
@@ -139,4 +154,14 @@ func (cfg *config) checkConditions(r *http.Request) bool {
 		}
 	}
 	return true
+}
+
+// Helper to determine if a Context is already done (cancelled), in an imperative style.
+func isDone(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
+	}
 }
