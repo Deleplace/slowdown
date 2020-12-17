@@ -14,8 +14,8 @@ func TestDelay(t *testing.T) {
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Hello world")
 	}
-	delayedHandler := Delay(handler)
-	// http.HandlerFunc
+	const extraLatency = 400 * time.Millisecond
+	delayedHandler := Delay(handler, extraLatency)
 
 	s := httptest.NewServer(delayedHandler)
 	defer s.Close()
@@ -37,10 +37,10 @@ func TestDelay(t *testing.T) {
 		t.Errorf("Expected %q, got %q", expected, actual)
 	}
 	// Test duration, with some tolerance
-	if totalResponseTime < 1900*time.Millisecond {
+	if totalResponseTime < extraLatency-100*time.Millisecond {
 		t.Errorf("Response time too short: %v", totalResponseTime)
 	}
-	if totalResponseTime > 2600*time.Millisecond {
+	if totalResponseTime > extraLatency+600*time.Millisecond {
 		t.Errorf("Response time too long: %v", totalResponseTime)
 	}
 }
