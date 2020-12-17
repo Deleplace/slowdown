@@ -35,6 +35,7 @@ type config struct {
 	fixedDurationAfter  time.Duration
 	headerPrefix        string
 	max                 time.Duration
+	conditions          []func(*http.Request) bool
 }
 
 // Option configures the behavior of the delayed handler.
@@ -49,6 +50,11 @@ func (cfg *config) after(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *config) sleep(w http.ResponseWriter, r *http.Request, beforeOrAfter string) {
+	if !cfg.checkConditions(r) {
+		// When at least one condition is not met, there is no delay added.
+		return
+	}
+
 	var d time.Duration
 	if cfg.headerPrefix != "" {
 		d, _ = readHeaderDuration(r, cfg.headerPrefix+"-"+beforeOrAfter)
@@ -77,7 +83,7 @@ func Fixed(before, after time.Duration) Option {
 // Header sets names of request headers that the client may set to control the
 // delay durations.
 //
-// E.g. "delay" for inspecting "delay-before" and "delay-after"
+// E.g. "delay" for inspecting "delay-before" and "delay-after".
 // The expected format for the header values is a parsable duration, e.g.
 // "delay-before: 300ms", "delay-after: 1.5s", etc.
 //
@@ -112,4 +118,25 @@ func Max(maxDuration time.Duration) Option {
 	return func(cfg *config) {
 		cfg.max = maxDuration
 	}
+}
+
+// Condition adds a predicate to determine if a given request should be delayed or not.
+//
+// Condition only has the power to prevent the delays to be applied, when the condition
+// is not met (i.e. when the predicate returns false).
+//
+// Multiple conditions may be combined.
+func Condition(predicate func(*http.Request) bool) Option {
+	return func(cfg *config) {
+		cfg.conditions = append(cfg.conditions, predicate)
+	}
+}
+
+func (cfg *config) checkConditions(r *http.Request) bool {
+	for _, predicate := range cfg.conditions {
+		if !predicate(r) {
+			return false
+		}
+	}
+	return true
 }

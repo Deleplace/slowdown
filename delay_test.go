@@ -161,6 +161,118 @@ func TestMaxBeforeAfterNotExceeded(t *testing.T) {
 	testDurationWithTolerance(t, responseTime, extraLatencyBefore+extraLatencyAfter)
 }
 
+// h = Delay(h, Header(prefix), Condition(predicate))
+func TestConditionMet(t *testing.T) {
+	const extraLatencyBefore = 100 * time.Millisecond
+	const extraLatencyBeforeString = "100ms"
+	const prefix = "delay"
+	const apiKey = "x96f3s6" // valid
+	predicate := func(r *http.Request) bool {
+		validAPIKeys := map[string]bool{
+			"x96f3s6": true,
+			"89qWsd2": true,
+		}
+		return validAPIKeys[r.Header.Get("apikey")]
+	}
+
+	delayedHandler := Delay(helloWorld, Header(prefix), Condition(predicate))
+
+	headers := http.Header{
+		"delay-before": []string{extraLatencyBeforeString},
+		"apikey":       []string{apiKey},
+	}
+	messageBytes, responseTime := call(t, delayedHandler, headers)
+
+	testOuput(t, messageBytes, "Hello world\n")
+	testDurationWithTolerance(t, responseTime, extraLatencyBefore)
+}
+
+// h = Delay(h, Header(prefix), Condition(predicate))
+func TestConditionUnmet(t *testing.T) {
+	const extraLatencyBefore = 100 * time.Millisecond
+	const extraLatencyBeforeString = "100ms"
+	const prefix = "delay"
+	const apiKey = "passw0rd" // invalid
+	predicate := func(r *http.Request) bool {
+		validAPIKeys := map[string]bool{
+			"x96f3s6": true,
+			"89qWsd2": true,
+		}
+		return validAPIKeys[r.Header.Get("apikey")]
+	}
+
+	delayedHandler := Delay(helloWorld, Header(prefix), Condition(predicate))
+
+	headers := http.Header{
+		"delay-before": []string{extraLatencyBeforeString},
+		"apikey":       []string{apiKey},
+	}
+	messageBytes, responseTime := call(t, delayedHandler, headers)
+
+	testOuput(t, messageBytes, "Hello world\n")
+	testDurationWithTolerance(t, responseTime, 0)
+}
+
+// h = Delay(h, Header(prefix), Condition(predicate1), Condition(predicate2))
+func TestMultipleConditionsMet(t *testing.T) {
+	const extraLatencyBefore = 300 * time.Millisecond
+	const extraLatencyBeforeString = "300ms"
+	const prefix = "delay"
+	const apiKey = "x96f3s6" // valid
+	predicate1 := func(r *http.Request) bool {
+		return r.Header.Get("user") == "admin"
+	}
+	predicate2 := func(r *http.Request) bool {
+		validAPIKeys := map[string]bool{
+			"x96f3s6": true,
+			"89qWsd2": true,
+		}
+		return validAPIKeys[r.Header.Get("apikey")]
+	}
+
+	delayedHandler := Delay(helloWorld, Header(prefix), Condition(predicate1), Condition(predicate2))
+
+	headers := http.Header{
+		"delay-before": []string{extraLatencyBeforeString},
+		"apikey":       []string{apiKey},
+		"user":         []string{"admin"},
+	}
+	messageBytes, responseTime := call(t, delayedHandler, headers)
+
+	testOuput(t, messageBytes, "Hello world\n")
+	testDurationWithTolerance(t, responseTime, extraLatencyBefore)
+}
+
+// h = Delay(h, Header(prefix), Condition(predicate1), Condition(predicate2))
+func TestMultipleConditionsUnmet(t *testing.T) {
+	const extraLatencyBefore = 300 * time.Millisecond
+	const extraLatencyBeforeString = "300ms"
+	const prefix = "delay"
+	const apiKey = "x96f3s6" // valid
+	predicate1 := func(r *http.Request) bool {
+		return r.Header.Get("user") == "admin"
+	}
+	predicate2 := func(r *http.Request) bool {
+		validAPIKeys := map[string]bool{
+			"x96f3s6": true,
+			"89qWsd2": true,
+		}
+		return validAPIKeys[r.Header.Get("apikey")]
+	}
+
+	delayedHandler := Delay(helloWorld, Header(prefix), Condition(predicate1), Condition(predicate2))
+
+	headers := http.Header{
+		"delay-before": []string{extraLatencyBeforeString},
+		"apikey":       []string{apiKey},
+		"user":         []string{"ted"},
+	}
+	messageBytes, responseTime := call(t, delayedHandler, headers)
+
+	testOuput(t, messageBytes, "Hello world\n")
+	testDurationWithTolerance(t, responseTime, 0)
+}
+
 // Helper: call the handler with specific request headers, while measuring response time.
 func call(t *testing.T, h http.HandlerFunc, headers http.Header) ([]byte, time.Duration) {
 	s := httptest.NewServer(h)
@@ -202,7 +314,7 @@ func testOuput(t *testing.T, messageBytes []byte, expected string) {
 	}
 }
 
-// Helper: check that elapsed time seem cromulent.
+// Helper: check that elapsed time seems cromulent.
 func testDurationWithTolerance(t *testing.T, observed, expected time.Duration) {
 	if observed < expected-50*time.Millisecond {
 		t.Errorf("Response time too short: %v", observed)
