@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+// Warning: these tests are SLOW because they need to Sleep a lot.
+
 // helloWorld is a trivial HandlerFunc. It takes very little time to execute.
 var helloWorld = func(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "Hello world")
@@ -18,39 +20,46 @@ var helloWorld = func(w http.ResponseWriter, r *http.Request) {
 // h = Delay(h)
 func TestDelayNoArguments(t *testing.T) {
 	delayedHandler := Delay(helloWorld)
-	expectedExtraLatency := 2 * time.Second
+	expectedExtraLatency := 1 * time.Second
 
 	messageBytes, responseTime := call(t, delayedHandler)
-	// Test output
-	if expected, actual := "Hello world\n", string(messageBytes); actual != expected {
-		t.Errorf("Expected %q, got %q", expected, actual)
-	}
-	// Test duration, with some tolerance
-	if responseTime < expectedExtraLatency-100*time.Millisecond {
-		t.Errorf("Response time too short: %v", responseTime)
-	}
-	if responseTime > expectedExtraLatency+600*time.Millisecond {
-		t.Errorf("Response time too long: %v", responseTime)
-	}
+
+	testOuput(t, messageBytes, "Hello world\n")
+	testDurationWithTolerance(t, responseTime, expectedExtraLatency)
 }
 
-// h = Delay(h, Duration(d))
-func TestDelay400ms(t *testing.T) {
+// h = Delay(h, Fixed(d, 0))
+func TestDelayBefore(t *testing.T) {
 	const extraLatency = 400 * time.Millisecond
-	delayedHandler := Delay(helloWorld, Duration(extraLatency))
+	delayedHandler := Delay(helloWorld, Fixed(extraLatency, 0))
 
 	messageBytes, responseTime := call(t, delayedHandler)
-	// Test output
-	if expected, actual := "Hello world\n", string(messageBytes); actual != expected {
-		t.Errorf("Expected %q, got %q", expected, actual)
-	}
-	// Test duration, with some tolerance
-	if responseTime < extraLatency-100*time.Millisecond {
-		t.Errorf("Response time too short: %v", responseTime)
-	}
-	if responseTime > extraLatency+600*time.Millisecond {
-		t.Errorf("Response time too long: %v", responseTime)
-	}
+
+	testOuput(t, messageBytes, "Hello world\n")
+	testDurationWithTolerance(t, responseTime, extraLatency)
+}
+
+// h = Delay(h, Fixed(0, d))
+func TestDelayAfter(t *testing.T) {
+	const extraLatency = 400 * time.Millisecond
+	delayedHandler := Delay(helloWorld, Fixed(0, extraLatency))
+
+	messageBytes, responseTime := call(t, delayedHandler)
+
+	testOuput(t, messageBytes, "Hello world\n")
+	testDurationWithTolerance(t, responseTime, extraLatency)
+}
+
+// h = Delay(h, Fixed(d1, d2))
+func TestDelayBeforeAfter(t *testing.T) {
+	const extraLatencyBefore = 300 * time.Millisecond
+	const extraLatencyAfter = 700 * time.Millisecond
+	delayedHandler := Delay(helloWorld, Fixed(extraLatencyBefore, extraLatencyAfter))
+
+	messageBytes, responseTime := call(t, delayedHandler)
+
+	testOuput(t, messageBytes, "Hello world\n")
+	testDurationWithTolerance(t, responseTime, extraLatencyBefore+extraLatencyAfter)
 }
 
 // Helper: call the handler while measuring response time.
@@ -81,4 +90,21 @@ func clock(f func()) time.Duration {
 	t := time.Now()
 	f()
 	return time.Since(t)
+}
+
+// Helper: inspect the HTTP response body.
+func testOuput(t *testing.T, messageBytes []byte, expected string) {
+	if actual := string(messageBytes); actual != expected {
+		t.Errorf("Expected %q, got %q", expected, actual)
+	}
+}
+
+// Helper: check that elapsed time seem cromulent.
+func testDurationWithTolerance(t *testing.T, observed, expected time.Duration) {
+	if observed < expected-100*time.Millisecond {
+		t.Errorf("Response time too short: %v", observed)
+	}
+	if observed > expected+600*time.Millisecond {
+		t.Errorf("Response time too long: %v", observed)
+	}
 }
