@@ -6,11 +6,15 @@ import (
 	"time"
 )
 
-// Delay adds an artificial latency at the start of the HandlerFunc.
+// Delay adds artificial latencies before and after an http.HandlerFunc. By default it
+// adds 1s of latency before the execution of the wrapped handler.
 //
-// Usage: myHandlerFunc = slowdown.Delay(myHandlerFunc)
+// Sample usage:
+//     myHandlerFunc = slowdown.Delay(myHandlerFunc)
 //
-// The call to Delay may be chained with other middleware when building a handler.
+// The call to Delay may be chained with other middleware when building a handler
+// func. By default the added latency may not exceed 40s per request (20s before
+// and 20s after). If you need to add more latency, set a higher cap with Max.
 func Delay(h http.HandlerFunc, opts ...Option) http.HandlerFunc {
 	// Default config values
 	cfg := config{

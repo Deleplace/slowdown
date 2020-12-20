@@ -121,9 +121,7 @@ func TestHeaderBeforeDelayAfter(t *testing.T) {
 // h = Delay(h, Header(prefix), Max(d))
 func TestMaxBeforeAfterExceeded(t *testing.T) {
 	const maxLatency = 100 * time.Millisecond
-	const extraLatencyBefore = 300 * time.Millisecond
 	const extraLatencyBeforeString = "300ms"
-	const extraLatencyAfter = 700 * time.Millisecond
 	const extraLatencyAfterString = "700ms"
 	const prefix = "delay"
 
@@ -191,7 +189,6 @@ func TestConditionMet(t *testing.T) {
 
 // h = Delay(h, Header(prefix), Condition(predicate))
 func TestConditionUnmet(t *testing.T) {
-	const extraLatencyBefore = 100 * time.Millisecond
 	const extraLatencyBeforeString = "100ms"
 	const prefix = "delay"
 	const apiKey = "passw0rd" // invalid
@@ -247,7 +244,6 @@ func TestMultipleConditionsMet(t *testing.T) {
 
 // h = Delay(h, Header(prefix), Condition(predicate1), Condition(predicate2))
 func TestMultipleConditionsUnmet(t *testing.T) {
-	const extraLatencyBefore = 300 * time.Millisecond
 	const extraLatencyBeforeString = "300ms"
 	const prefix = "delay"
 	const apiKey = "x96f3s6" // valid
