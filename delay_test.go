@@ -305,6 +305,24 @@ func TestContextCanceled(t *testing.T) {
 	time.Sleep(extraLatency - cancelLatency + 50*time.Millisecond)
 }
 
+func TestHandler(t *testing.T) {
+	var h http.Handler
+	tmpdir, err := ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h = http.FileServer(http.Dir(tmpdir))
+
+	// If what we have is an http.Handler h (not an http.HandlerFunc),
+	// then we can pass x.ServeHTTP .
+	delayedHandler := Delay(h.ServeHTTP, Fixed(200*time.Millisecond, 0))
+	expectedExtraLatency := 200 * time.Millisecond
+
+	_, responseTime := call(t, delayedHandler, nil)
+
+	testDurationWithTolerance(t, responseTime, expectedExtraLatency)
+}
+
 // Helper: call the handler with specific request headers, while measuring response time.
 func call(t *testing.T, h http.HandlerFunc, headers http.Header) ([]byte, time.Duration) {
 	s := httptest.NewServer(h)
