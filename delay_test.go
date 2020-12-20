@@ -15,7 +15,7 @@ import (
 // Warning: these tests are SLOW because they need to Sleep a lot.
 
 // helloWorld is a trivial HandlerFunc. It takes very little time to execute.
-var helloWorld = func(w http.ResponseWriter, r *http.Request) {
+var helloWorld http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "Hello world")
 }
 
@@ -275,7 +275,7 @@ func TestMultipleConditionsUnmet(t *testing.T) {
 func TestContextCanceled(t *testing.T) {
 	const extraLatency = 500 * time.Millisecond
 	const cancelLatency = 200 * time.Millisecond
-	sideEffectHandler := func(w http.ResponseWriter, h *http.Request) {
+	var sideEffectHandler http.HandlerFunc = func(w http.ResponseWriter, h *http.Request) {
 		t.Errorf("Should have been canceled before hitting the wrapped handler")
 	}
 	delayedHandler := Delay(sideEffectHandler, Fixed(extraLatency, 0))
@@ -303,6 +303,22 @@ func TestContextCanceled(t *testing.T) {
 	testDurationWithTolerance(t, responseTime, cancelLatency)
 	// Make sure the side effect would have had the time to be triggered
 	time.Sleep(extraLatency - cancelLatency + 50*time.Millisecond)
+}
+
+func TestHandler(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := http.FileServer(http.Dir(tmpdir))
+
+	// We're passing an http.Handler h (not an http.HandlerFunc).
+	delayedHandler := Delay(h)
+	expectedExtraLatency := 1 * time.Second
+
+	_, responseTime := call(t, delayedHandler, nil)
+
+	testDurationWithTolerance(t, responseTime, expectedExtraLatency)
 }
 
 // Helper: call the handler with specific request headers, while measuring response time.

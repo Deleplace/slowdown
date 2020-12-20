@@ -15,7 +15,7 @@ import (
 // The call to Delay may be chained with other middleware when building a handler
 // func. By default the added latency may not exceed 40s per request (20s before
 // and 20s after). If you need to add more latency, set a higher cap with Max.
-func Delay(h http.HandlerFunc, opts ...Option) http.HandlerFunc {
+func Delay(h http.Handler, opts ...Option) http.HandlerFunc {
 	// Default config values
 	cfg := config{
 		fixedDurationBefore: 1 * time.Second,
@@ -33,7 +33,7 @@ func Delay(h http.HandlerFunc, opts ...Option) http.HandlerFunc {
 			return
 		}
 
-		h(w, r)
+		h.ServeHTTP(w, r)
 
 		if isDone(r.Context()) {
 			return
